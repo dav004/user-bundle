@@ -1,0 +1,29 @@
+$loading-background-color: #0177fd;
+$loading-spinner-color: #fff;
+
+.vuetifyAlert__noPadding {
+  padding: 0;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+a {
+  text-decoration: none;
+}
+
+.v-snack__wrapper {
+  min-width: auto!important;
+}
+
+.regTable {
+  display: table;
+  width: 100%;
+}
+
+.regTableRow {
+  display: table-cell;
+}
+
+@import "loading.scss";

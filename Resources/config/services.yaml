@@ -1,0 +1,207 @@
+services:
+    _defaults:
+        autowire: false
+        autoconfigure: false
+
+    Ewll\UserBundle\Repository\:
+        resource: './../../Repository'
+        tags: ['repositories']
+
+    Ewll\UserBundle\Authenticator\Authenticator:
+        arguments:
+            - '@ewll.db.repository-provider'
+            - '%ewll_user.domain%'
+            - '@router.default'
+            - '@ewll.db.client.default'
+            - '@Ewll\MailerBundle\Mailer'
+            - '@request_stack'
+            - '@Ewll\UserBundle\Token\TokenProvider'
+            - '@logger'
+            - '%ewll_user.salt%'
+        tags:
+            - { name: monolog.logger, channel: user }
+
+    Ewll\UserBundle\PageDataCompiler:
+        arguments:
+            - '@translator'
+            - '@twig'
+            - '@form.factory'
+            - '@Ewll\UserBundle\Form\DataTransformer\UserToEmailTransformer'
+            - '@Ewll\UserBundle\Form\DataTransformer\CodeToTokenTransformer'
+            - !tagged ewll_user_oauth
+            - '%ewll_user.domain%'
+            - '%ewll_user.cdn%'
+
+    Ewll\UserBundle\Controller\UserController:
+        public: true
+        tags: ['controller.service_arguments']
+        calls: [[setContainer, ['@service_container']]]
+        arguments:
+            - '@Ewll\UserBundle\Authenticator\Authenticator'
+            - '@ewll.db.repository-provider'
+            - '@Ewll\UserBundle\PageDataCompiler'
+            - '@Ewll\UserBundle\Twofa\TwofaHandler'
+            - '@Ewll\UserBundle\Captcha\CaptchaProvider'
+            - '@Ewll\UserBundle\Token\TokenProvider'
+            - '@translator'
+            - '%ewll_user.redirect%'
+
+    Ewll\UserBundle\Controller\CaptchaController:
+        public: true
+        tags: ['controller.service_arguments']
+        calls: [[setContainer, ['@service_container']]]
+        arguments:
+            - '@Ewll\UserBundle\Captcha\CaptchaProvider'
+
+    Ewll\UserBundle\Controller\TwofaController:
+        public: true
+        tags: ['controller.service_arguments']
+        calls: [[setContainer, ['@service_container']]]
+        arguments:
+            - '@Ewll\UserBundle\Authenticator\Authenticator'
+            - '@Ewll\UserBundle\PageDataCompiler'
+            - '@Ewll\UserBundle\Twofa\TwofaHandler'
+            - '@Ewll\UserBundle\Form\DataTransformer\TwofaTypeToServiceTransformer'
+            - '@translator'
+            - '@Ewll\UserBundle\Twofa\Item\GoogleTwofa'
+            - '@ewll.db.repository-provider'
+            - '@Ewll\UserBundle\Token\TokenProvider'
+            - '%ewll_user.telegram_bot_name%'
+            - '%ewll_user.domain%'
+            - '@Ewll\UserBundle\Form\DataTransformer\CodeToTokenTransformer'
+            - '@Ewll\UserBundle\Twofa\JsConfigCompiler'
+            - '%ewll_user.twofa.actions%'
+            - '%ewll_user.redirect%'
+
+    Ewll\UserBundle\Controller\OauthController:
+        public: true
+        calls: [[setContainer, ['@service_container']]]
+        arguments:
+            - !tagged ewll_user_oauth
+            - '@Ewll\UserBundle\PageDataCompiler'
+            - '@ewll.db.repository-provider'
+            - '@Ewll\UserBundle\Authenticator\Authenticator'
+            - '@Ewll\UserBundle\Twofa\TwofaHandler'
+            - '@Ewll\UserBundle\Token\TokenProvider'
+            - '@translator'
+            - '@logger'
+            - '%ewll_user.domain%'
+        tags:
+            - 'controller.service_arguments'
+            - { name: monolog.logger, channel: user }
+
+    Ewll\UserBundle\Form\Constraints\UniqueEmailValidator:
+        arguments: ['@ewll.db.repository-provider']
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\PassMatchValidator:
+        arguments: ['@Ewll\UserBundle\Authenticator\Authenticator']
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\CsrfTokenValidator:
+        arguments: ['@Ewll\UserBundle\Authenticator\Authenticator', '@request_stack']
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\TokenTypeValidator:
+        arguments: []
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\CaptchaValidator:
+        arguments: ['@Ewll\UserBundle\Captcha\CaptchaProvider']
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\TwofaValidator:
+        arguments:
+            - '@Ewll\UserBundle\Twofa\TwofaHandler'
+            - '@ewll.db.repository-provider'
+            - '@Ewll\UserBundle\Authenticator\Authenticator'
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\UserHasNoTwofaValidator:
+        arguments: ['@Ewll\UserBundle\Authenticator\Authenticator']
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\Constraints\ConfirmedEmailValidator:
+        arguments: ['@ewll.db.repository-provider']
+        tags: ['validator.constraint_validator']
+
+    Ewll\UserBundle\Form\DataTransformer\UserToEmailTransformer:
+        arguments: ['@ewll.db.repository-provider']
+
+    Ewll\UserBundle\Form\DataTransformer\TwofaTypeToServiceTransformer:
+        arguments: [!tagged twofa]
+
+    Ewll\UserBundle\Form\DataTransformer\CodeToTokenTransformer:
+        arguments: ['@Ewll\UserBundle\Token\TokenProvider']
+
+    Ewll\UserBundle\AccessRule\AccessRuleProvider:
+        arguments: [!tagged access_rule]
+
+    Ewll\UserBundle\AccessRule\AccessChecker: []
+
+    Ewll\UserBundle\AccessRule\UserAccessRule:
+        tags: ['access_rule']
+
+    Ewll\UserBundle\Command\EditUserAccessRuleCommand:
+        arguments:
+            - '@ewll.db.repository-provider'
+            - '@Ewll\UserBundle\AccessRule\AccessRuleProvider'
+            - '@Ewll\UserBundle\AccessRule\AccessChecker'
+        tags:
+            - { name: 'console.command', command: 'ewll:user:access-rules' }
+            - { name: monolog.logger, channel: user }
+
+    Ewll\UserBundle\Command\FlushCommand:
+        arguments:
+            - '@ewll.db.repository-provider'
+            - '@logger'
+        tags:
+            - { name: 'console.command', command: 'ewll:user:flush' }
+            - { name: monolog.logger, channel: user }
+
+    Ewll\UserBundle\Twofa\TwofaHandler:
+        arguments:
+            - '@Ewll\UserBundle\Authenticator\Authenticator'
+            - '@ewll.db.repository-provider'
+            - '@ewll.db.client.default'
+            - '@translator'
+            - '@logger'
+            - !tagged twofa
+        tags: [{ name: monolog.logger, channel: user }]
+
+    Ewll\UserBundle\Twofa\JsConfigCompiler:
+        arguments:
+            - '@Ewll\UserBundle\Twofa\TwofaHandler'
+            - '%ewll_user.twofa.actions%'
+
+    Ewll\UserBundle\Twofa\Item\TelegramTwofa:
+        arguments:
+            - '%ewll_user.telegram_bot_token%'
+            - '%ewll_user.telegram_proxy%'
+        tags: ['twofa']
+
+    Ewll\UserBundle\Twofa\Item\GoogleTwofa:
+        arguments: []
+        tags: ['twofa']
+
+    Ewll\UserBundle\Captcha\CaptchaProvider:
+        arguments:
+            - '@ewll.db.repository-provider'
+            - '@Ewll\UserBundle\Token\TokenProvider'
+            - '@request_stack'
+            - '%ewll_user.salt%'
+            - '%ewll_user.domain%'
+
+    Ewll\UserBundle\Token\TokenProvider:
+        arguments:
+            - '@ewll.db.repository-provider'
+            - !tagged ewll_user_token
+            - '@router.default'
+            - '@logger'
+            - '%ewll_user.salt%'
+            - '%ewll_user.domain%'
+        tags: [{ name: monolog.logger, channel: user }]
+
+    Ewll\UserBundle\Token\Item\:
+        resource: './../../Token/Item'
+        tags: ['ewll_user_token']
